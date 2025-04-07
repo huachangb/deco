@@ -25,7 +25,8 @@ def initiate_model(args):
     deco_model = DECO('hrnet', True, device)
 
     logger.info(f'Loading weights from {args.model_path}')
-    checkpoint = torch.load(args.model_path)
+    checkpoint = torch.load(args.model_path, map_location=torch.device("cpu"))
+    logger.info(checkpoint.keys())
     deco_model.load_state_dict(checkpoint['deco'], strict=True)
 
     deco_model.eval()
@@ -130,7 +131,7 @@ def create_scene(mesh, img, focal_length=500, camera_center=250, img_res=500):
     IMG = np.hstack(mesh_images)
     IMG = pil_img.fromarray(IMG)
     IMG.thumbnail((3000, 3000))
-    return IMG    
+    return IMG
 
 def main(args):
     if os.path.isdir(args.img_src):
@@ -139,15 +140,28 @@ def main(args):
         images = [args.img_src]
 
     deco_model = initiate_model(args)
-    
+
     smpl_path = os.path.join(constants.SMPL_MODEL_DIR, 'smpl_neutral_tpose.ply')
-    
+
+    from torchvision.transforms import Normalize
+
+    normalize_img = Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+
     for img_name in images:
+        logger.info(f"Processing: {img_name}")
         img = cv2.imread(img_name)
         img = cv2.resize(img, (256, 256), cv2.INTER_CUBIC)
         img = img.transpose(2,0,1)/255.0
         img = img[np.newaxis,:,:,:]
         img = torch.tensor(img, dtype = torch.float32).to(device)
+
+        og_img = img.clone()
+        og_img = og_img.detach().cpu().numpy()
+        og_img = np.transpose(og_img[0], (1, 2, 0))
+        og_img = og_img * 255
+        og_img = og_img.astype(np.uint8)
+
+        img = normalize_img(img)
 
         cont, _, _ = deco_model(img)
         cont = cont.detach().cpu().numpy().squeeze()
@@ -155,26 +169,26 @@ def main(args):
         for indx, i in enumerate(cont):
             if i >= 0.5:
                 cont_smpl.append(indx)
-        
-        img = img.detach().cpu().numpy()		
-        img = np.transpose(img[0], (1, 2, 0))		
-        img = img * 255		
+
+        img = img.detach().cpu().numpy()
+        img = np.transpose(img[0], (1, 2, 0))
+        img = img * 255
         img = img.astype(np.uint8)
-        
+
         contact_smpl = np.zeros((1, 1, 6890))
         contact_smpl[0][0][cont_smpl] = 1
 
-        body_model_smpl = trimesh.load(smpl_path, process=False)
+        body_model_smpl = trimesh.load(smpl_path, process=False, map_location=torch.device("cpu"))
         for vert in range(body_model_smpl.visual.vertex_colors.shape[0]):
             body_model_smpl.visual.vertex_colors[vert] = args.mesh_colour
         body_model_smpl.visual.vertex_colors[cont_smpl] = args.annot_colour
 
-        rend = create_scene(body_model_smpl, img)
-        os.makedirs(os.path.join(args.out_dir, 'Renders'), exist_ok=True) 
+        rend = create_scene(body_model_smpl, og_img)
+        os.makedirs(os.path.join(args.out_dir, 'Renders'), exist_ok=True)
         rend.save(os.path.join(args.out_dir, 'Renders', os.path.basename(img_name).split('.')[0] + '.png'))
-                  
+
         out_dir = os.path.join(args.out_dir, 'Preds', os.path.basename(img_name).split('.')[0])
-        os.makedirs(out_dir, exist_ok=True)          
+        os.makedirs(out_dir, exist_ok=True)
 
         logger.info(f'Saving mesh to {out_dir}')
         shutil.copyfile(img_name, os.path.join(out_dir, os.path.basename(img_name)))
