@@ -6,10 +6,12 @@ from train.trainer_step import TrainStepper
 from train.base_trainer import evaluator
 from data.base_dataset import BaseDataset
 from models.deco import DECO
+from models.sam import SAMSceneEncoder
 from utils.config import parse_args, run_grid_search_experiments
 
 def test(hparams):
     deco_model = DECO(hparams.TRAINING.ENCODER, hparams.TRAINING.CONTEXT, device)
+
     pytorch_total_params = sum(p.numel() for p in deco_model.parameters() if p.requires_grad)
     print('Total number of trainable parameters: ', pytorch_total_params)
 
@@ -17,7 +19,10 @@ def test(hparams):
 
     logger.info(f'Loading weights from {hparams.TRAINING.BEST_MODEL_PATH}')
     _, _ = solver.load(hparams.TRAINING.BEST_MODEL_PATH)
-    
+
+    # solver.model.encoder_sem = SAMSceneEncoder(sam_checkpoint="../segment-anything/checkpoints/sam_vit_b_01ec64.pth").to(device)
+
+
     # Run testing
     for test_loader in val_loaders:
         dataset_name = test_loader.dataset.dataset
@@ -56,6 +61,7 @@ if __name__ == '__main__':
         else:
             raise ValueError('Dataset not supported')
 
+    hparams.DATASET.BATCH_SIZE = 8
     val_loaders = [DataLoader(val_dataset, batch_size=hparams.DATASET.BATCH_SIZE, shuffle=False, num_workers=hparams.DATASET.NUM_WORKERS) for val_dataset in val_datasets]
 
     test(hparams)

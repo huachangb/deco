@@ -11,7 +11,10 @@ import shutil
 import trimesh
 import pyrender
 
+from torchvision.transforms import Normalize
+
 from models.deco import DECO
+from models.sam import SAMSceneEncoder
 from common import constants
 
 os.environ['PYOPENGL_PLATFORM'] = 'egl'
@@ -28,6 +31,9 @@ def initiate_model(args):
     checkpoint = torch.load(args.model_path, map_location=device)
     logger.info(checkpoint.keys())
     deco_model.load_state_dict(checkpoint['deco'], strict=True)
+
+    sem_enc = SAMSceneEncoder(sam_checkpoint="../segment-anything/checkpoints/sam_vit_b_01ec64.pth").to(device)
+    deco_model.encoder_sem = sem_enc
 
     deco_model.eval()
 
@@ -142,8 +148,6 @@ def main(args):
     deco_model = initiate_model(args)
 
     smpl_path = os.path.join(constants.SMPL_MODEL_DIR, 'smpl_neutral_tpose.ply')
-
-    from torchvision.transforms import Normalize
 
     normalize_img = Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 

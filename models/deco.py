@@ -11,7 +11,7 @@ class DECO(nn.Module):
         self.encoder_sem = Encoder(encoder=encoder).to(device)
         self.encoder_part = Encoder(encoder=encoder).to(device)
         if self.encoder_type == 'hrnet':
-            if self.context:    
+            if self.context:
                 self.decoder_sem = Decoder(480, 133, encoder=encoder).to(device)
                 self.decoder_part = Decoder(480, 26, encoder=encoder).to(device)
             self.sem_pool = nn.AdaptiveAvgPool2d((1))
@@ -20,7 +20,7 @@ class DECO(nn.Module):
             self.classif = Classifier(480).to(device)
         elif self.encoder_type == 'swin':
             self.correction_conv = nn.Conv1d(768, 1024, 1).to(device)
-            if self.context:    
+            if self.context:
                 self.decoder_sem = Decoder(1, 133, encoder=encoder).to(device)
                 self.decoder_part = Decoder(1, 26, encoder=encoder).to(device)
             self.cross_att = Cross_Att(1024, 1024).to(device)
@@ -34,6 +34,8 @@ class DECO(nn.Module):
         if self.encoder_type == 'hrnet':
             sem_enc_out = self.encoder_sem(img)
             part_enc_out = self.encoder_part(img)
+
+            print(f"Image shape: {img.shape}, sem: {sem_enc_out.shape}, part: {part_enc_out.shape}")
 
             if self.context:
                 sem_mask_pred = self.decoder_sem(sem_enc_out)
@@ -55,13 +57,13 @@ class DECO(nn.Module):
             sem_enc_out = self.encoder_sem(img)
             part_enc_out = self.encoder_part(img)
 
-            sem_seg = torch.reshape(sem_enc_out, (-1, 768, 1))		
-            part_seg = torch.reshape(part_enc_out, (-1, 768, 1))		
+            sem_seg = torch.reshape(sem_enc_out, (-1, 768, 1))
+            part_seg = torch.reshape(part_enc_out, (-1, 768, 1))
 
-            sem_seg = self.correction_conv(sem_seg)		
-            part_seg = self.correction_conv(part_seg)		
+            sem_seg = self.correction_conv(sem_seg)
+            part_seg = self.correction_conv(part_seg)
 
-            sem_seg = torch.reshape(sem_seg, (-1, 1, 32, 32))		
+            sem_seg = torch.reshape(sem_seg, (-1, 1, 32, 32))
             part_seg = torch.reshape(part_seg, (-1, 1, 32, 32))
 
             if self.context:
