@@ -13,5 +13,5 @@ flatten_dict
 chumpy
 numpy==1.23.1
 yacs
-networkx==2.5
+# networkx==2.5
 charset-normalizer==3.1.0
