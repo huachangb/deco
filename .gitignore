@@ -1,5 +1,11 @@
 *.out
 
+*_out
+*_results
+demo_*
+
+*.job
+
 out*/
 test_*/
 selected*_/
