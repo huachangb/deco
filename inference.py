@@ -25,7 +25,7 @@ def initiate_model(args):
     deco_model = DECO('hrnet', True, device)
 
     logger.info(f'Loading weights from {args.model_path}')
-    checkpoint = torch.load(args.model_path, map_location=torch.device("cpu"))
+    checkpoint = torch.load(args.model_path, map_location=device)
     logger.info(checkpoint.keys())
     deco_model.load_state_dict(checkpoint['deco'], strict=True)
 
@@ -178,7 +178,7 @@ def main(args):
         contact_smpl = np.zeros((1, 1, 6890))
         contact_smpl[0][0][cont_smpl] = 1
 
-        body_model_smpl = trimesh.load(smpl_path, process=False, map_location=torch.device("cpu"))
+        body_model_smpl = trimesh.load(smpl_path, process=False, map_location=device)
         for vert in range(body_model_smpl.visual.vertex_colors.shape[0]):
             body_model_smpl.visual.vertex_colors[vert] = args.mesh_colour
         body_model_smpl.visual.vertex_colors[cont_smpl] = args.annot_colour
