@@ -3,7 +3,7 @@ import torchvision
 import torch.nn as nn
 import numpy as np
 
-# from utils.hrnet import hrnet_w32
+from utils.hrnet import hrnet_w32
 
 class Encoder(nn.Module):
     def __init__(self, encoder='hrnet', pretrained=True):
@@ -52,7 +52,7 @@ class Cross_Att(nn.Module):
 
         self.cross_attn_1 = Self_Attn(q_in_dim=sem_in_dim, k_in_dim=part_in_dim, v_in_dim=part_in_dim, out_dim=out_dim)
         self.cross_attn_2 = Self_Attn(q_in_dim=part_in_dim, k_in_dim=sem_in_dim, v_in_dim=sem_in_dim, out_dim=out_dim)
-        self.layer_norm = nn.LayerNorm(out_dim)
+        self.layer_norm = nn.LayerNorm([1, out_dim])
 
     def forward(self, sem_seg, part_seg):
         cross1 = self.cross_attn_1(sem_seg, part_seg, part_seg)
