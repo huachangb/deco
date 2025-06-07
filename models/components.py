@@ -3,7 +3,7 @@ import torchvision
 import torch.nn as nn
 import numpy as np
 
-from utils.hrnet import hrnet_w32
+# from utils.hrnet import hrnet_w32
 
 class Encoder(nn.Module):
     def __init__(self, encoder='hrnet', pretrained=True):
@@ -21,60 +21,46 @@ class Encoder(nn.Module):
 
     def forward(self, x):
         out = self.encoder(x)
-        return out  
+        return out
 
 class Self_Attn(nn.Module):
-    """ Self attention Layer for Feature Map dimension"""
-    def __init__(self, in_dim, out_dim):
+    """ Self attention Layer for Feature Map dimension, outputs B x out_dim x N """
+    def __init__(self, q_in_dim, k_in_dim, v_in_dim, out_dim):
         super(Self_Attn, self).__init__()
-        self.channel_in = in_dim
-        self.query_conv = nn.Conv1d(in_channels = in_dim, out_channels = out_dim, kernel_size = 1)
-        self.key_conv = nn.Conv1d(in_channels = in_dim, out_channels = out_dim, kernel_size = 1)
-        self.value_conv = nn.Conv1d(in_channels = in_dim, out_channels = out_dim, kernel_size = 1)
-        self.softmax  = nn.Softmax(dim = -1)
+        self.out_dim = out_dim
+
+        self.query_conv = nn.Conv1d(in_channels=q_in_dim, out_channels=out_dim, kernel_size=1)
+        self.key_conv = nn.Conv1d(in_channels=k_in_dim, out_channels=out_dim, kernel_size=1)
+        self.value_conv = nn.Conv1d(in_channels=v_in_dim, out_channels=out_dim, kernel_size=1)
+
+        self.softmax = nn.Softmax(dim=-1)
 
     def forward(self, q, k, v):
-        """
-            inputs :
-                x : input feature maps(B X C X H X W)
-            returns :
-                out : self attention value + input feature 
-                attention: B X N X N (N is Height * Width)
-        """
-        batchsize, C, height = q.size()
-        # proj_query: reshape to B x N x c, N = H x W
-        proj_query  = self.query_conv(q.permute(0, 2, 1))
-        # proj_query: reshape to B x c x N, N = H x W
-        proj_key =  self.key_conv(k.permute(0, 2, 1))
-        # transpose check, energy: B x N x N, N = H x W
-        energy =  torch.bmm(proj_query, proj_key.permute(0, 2, 1))
-        # attention: B x N x N, N = H x W
-        attention = self.softmax(energy)
-        # proj_value is normal convolution, B x C x N
+        """ q, k, v: B x in_dim x N """
+        proj_query = self.query_conv(q.permute(0, 2, 1))
+        proj_key = self.key_conv(k.permute(0, 2, 1))
+        energy = torch.bmm(proj_query, proj_key.permute(0, 2, 1))
+        attention = self.softmax(energy / (self.out_dim ** 0.5))
         proj_value = self.value_conv(v.permute(0, 2, 1))
-        # out: B x C x N
         out = torch.bmm(attention, proj_value)
-        out = out.view(batchsize, C, height)
-        out = out/np.sqrt(self.channel_in)
-        
+        out = out.permute(0, 2, 1)
         return out
 
 class Cross_Att(nn.Module):
-    def __init__(self, in_dim, out_dim):
+    def __init__(self, sem_in_dim, part_in_dim, out_dim):
         super(Cross_Att, self).__init__()
 
-        self.cross_attn_1 = Self_Attn(in_dim, out_dim)
-        self.cross_attn_2 = Self_Attn(in_dim, out_dim)
-        self.layer_norm = nn.LayerNorm([1, in_dim])
+        self.cross_attn_1 = Self_Attn(q_in_dim=sem_in_dim, k_in_dim=part_in_dim, v_in_dim=part_in_dim, out_dim=out_dim)
+        self.cross_attn_2 = Self_Attn(q_in_dim=part_in_dim, k_in_dim=sem_in_dim, v_in_dim=sem_in_dim, out_dim=out_dim)
+        self.layer_norm = nn.LayerNorm(out_dim)
 
     def forward(self, sem_seg, part_seg):
         cross1 = self.cross_attn_1(sem_seg, part_seg, part_seg)
-        cross2 = self.cross_attn_1(part_seg, sem_seg, sem_seg)
-
+        cross2 = self.cross_attn_2(part_seg, sem_seg, sem_seg)
         out = cross1 * cross2
         out = self.layer_norm(out)
-
         return out
+
 
 class Decoder(nn.Module):
     def __init__(self, in_dim, out_dim, encoder='hrnet'):
@@ -119,7 +105,7 @@ class Classifier(nn.Module):
         self.out_dim = out_dim
 
         self.classifier = nn.Sequential(
-            nn.Linear(in_dim, 4096, True), 
+            nn.Linear(in_dim, 4096, True),
             nn.ReLU(),
             nn.Linear(4096, out_dim, True),
             nn.Sigmoid()

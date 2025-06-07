@@ -16,14 +16,14 @@ class DECO(nn.Module):
                 self.decoder_part = Decoder(480, 26, encoder=encoder).to(device)
             self.sem_pool = nn.AdaptiveAvgPool2d((1))
             self.part_pool = nn.AdaptiveAvgPool2d((1))
-            self.cross_att = Cross_Att(480, 480).to(device)
+            self.cross_att = Cross_Att(480, 480, 480).to(device)
             self.classif = Classifier(480).to(device)
         elif self.encoder_type == 'swin':
             self.correction_conv = nn.Conv1d(768, 1024, 1).to(device)
             if self.context:
                 self.decoder_sem = Decoder(1, 133, encoder=encoder).to(device)
                 self.decoder_part = Decoder(1, 26, encoder=encoder).to(device)
-            self.cross_att = Cross_Att(1024, 1024).to(device)
+            self.cross_att = Cross_Att(1024, 1024, 1024).to(device)
             self.classif = Classifier(1024).to(device)
         else:
             NotImplementedError('Encoder type not implemented')
